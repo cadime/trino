@@ -15,19 +15,15 @@ package io.trino;
 
 import io.trino.client.ClientCapabilities;
 
-import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.trino.plugin.tpch.TpchMetadata.TINY_SCHEMA_NAME;
 import static io.trino.testing.TestingSession.testSessionBuilder;
-import static java.util.Arrays.stream;
 
 public final class SessionTestUtils
 {
     public static final Session TEST_SESSION = testSessionBuilder()
             .setCatalog("tpch")
             .setSchema(TINY_SCHEMA_NAME)
-            .setClientCapabilities(stream(ClientCapabilities.values())
-                    .map(ClientCapabilities::toString)
-                    .collect(toImmutableSet()))
+            .setClientCapabilities(ClientCapabilities.defaultClientCapabilities())
             .build();
 
     private SessionTestUtils() {}

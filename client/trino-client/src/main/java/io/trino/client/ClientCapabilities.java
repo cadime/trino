@@ -13,6 +13,11 @@
  */
 package io.trino.client;
 
+import java.util.Set;
+
+import static java.util.Arrays.stream;
+import static java.util.stream.Collectors.toUnmodifiableSet;
+
 public enum ClientCapabilities
 {
     PATH,
@@ -40,7 +45,38 @@ public enum ClientCapabilities
     VARIANT_JSON,
 
     /**
+     * Whether client supports the `VARIANT` type encoded as a binary payload on the wire.
+     * This capability is opt-in, so clients continue to receive the JSON representation by default.
+     */
+    VARIANT_BINARY(false),
+
+    /**
      * Whether clients support the session authorization set/reset feature
      */
     SESSION_AUTHORIZATION;
+
+    private final boolean enabledByDefault;
+
+    ClientCapabilities()
+    {
+        this(true);
+    }
+
+    ClientCapabilities(boolean enabledByDefault)
+    {
+        this.enabledByDefault = enabledByDefault;
+    }
+
+    public boolean enabledByDefault()
+    {
+        return enabledByDefault;
+    }
+
+    public static Set<String> defaultClientCapabilities()
+    {
+        return stream(values())
+                .filter(ClientCapabilities::enabledByDefault)
+                .map(Enum::name)
+                .collect(toUnmodifiableSet());
+    }
 }

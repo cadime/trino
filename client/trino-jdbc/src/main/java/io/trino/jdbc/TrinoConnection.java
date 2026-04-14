@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import io.airlift.units.Duration;
+import io.trino.client.ClientCapabilities;
 import io.trino.client.ClientSelectedRole;
 import io.trino.client.ClientSession;
 import io.trino.client.JsonResponse;
@@ -59,6 +60,7 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -928,7 +930,10 @@ public class TrinoConnection
                 .encoding(encoding)
                 .build();
 
-        return newStatementClient(httpCallFactory, segmentHttpCallFactory, session, sql);
+        Set<String> clientCapabilities = new HashSet<>(ClientCapabilities.defaultClientCapabilities());
+        clientCapabilities.add(ClientCapabilities.VARIANT_BINARY.toString());
+
+        return newStatementClient(httpCallFactory, segmentHttpCallFactory, session, sql, Optional.of(ImmutableSet.copyOf(clientCapabilities)));
     }
 
     void updateSession(StatementClient client)

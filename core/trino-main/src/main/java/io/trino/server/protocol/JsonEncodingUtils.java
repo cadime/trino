@@ -52,6 +52,7 @@ import io.trino.util.variant.VariantUtil;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -92,13 +93,14 @@ public final class JsonEncodingUtils
         Set<String> clientCapabilities = session.getClientCapabilities();
         boolean supportsParametricDateTime = clientCapabilities.contains(ClientCapabilities.PARAMETRIC_DATETIME.toString());
         boolean supportsVariantJson = clientCapabilities.contains(ClientCapabilities.VARIANT_JSON.toString());
+        boolean supportsVariantBinary = clientCapabilities.contains(ClientCapabilities.VARIANT_BINARY.toString());
 
         return types.stream()
-                .map(type -> createTypeEncoder(type, supportsParametricDateTime, supportsVariantJson))
+                .map(type -> createTypeEncoder(type, supportsParametricDateTime, supportsVariantJson, supportsVariantBinary))
                 .toArray(TypeEncoder[]::new);
     }
 
-    public static TypeEncoder createTypeEncoder(Type type, boolean supportsParametricDateTime, boolean supportsVariantJson)
+    public static TypeEncoder createTypeEncoder(Type type, boolean supportsParametricDateTime, boolean supportsVariantJson, boolean supportsVariantBinary)
     {
         return switch (type) {
             case BigintType _ -> BIGINT_ENCODER;
@@ -111,13 +113,13 @@ public final class JsonEncodingUtils
             case VarcharType _ -> VARCHAR_ENCODER;
             case VarbinaryType _ -> VARBINARY_ENCODER;
             case CharType charType -> new CharEncoder(charType.getLength());
-            case VariantType _ -> new VariantEncoder(supportsVariantJson);
+            case VariantType _ -> new VariantEncoder(supportsVariantJson, supportsVariantBinary);
             // TODO: add specialized Short/Long decimal encoders
-            case ArrayType arrayType -> new ArrayEncoder(arrayType, createTypeEncoder(arrayType.getElementType(), supportsParametricDateTime, supportsVariantJson));
-            case MapType mapType -> new MapEncoder(mapType, createTypeEncoder(mapType.getValueType(), supportsParametricDateTime, supportsVariantJson));
+            case ArrayType arrayType -> new ArrayEncoder(arrayType, createTypeEncoder(arrayType.getElementType(), supportsParametricDateTime, supportsVariantJson, supportsVariantBinary));
+            case MapType mapType -> new MapEncoder(mapType, createTypeEncoder(mapType.getValueType(), supportsParametricDateTime, supportsVariantJson, supportsVariantBinary));
             case RowType rowType -> new RowEncoder(rowType, rowType.getFieldTypes()
                     .stream()
-                    .map(elementType -> createTypeEncoder(elementType, supportsParametricDateTime, supportsVariantJson))
+                    .map(elementType -> createTypeEncoder(elementType, supportsParametricDateTime, supportsVariantJson, supportsVariantBinary))
                     .toArray(TypeEncoder[]::new));
             case Type _ -> new TypeObjectValueEncoder(type, supportsParametricDateTime);
         };
@@ -322,10 +324,12 @@ public final class JsonEncodingUtils
             implements TypeEncoder
     {
         private final boolean supportsVariantJson;
+        private final boolean supportsVariantBinary;
 
-        public VariantEncoder(boolean supportsVariantJson)
+        public VariantEncoder(boolean supportsVariantJson, boolean supportsVariantBinary)
         {
             this.supportsVariantJson = supportsVariantJson;
+            this.supportsVariantBinary = supportsVariantBinary;
         }
 
         @Override
@@ -338,6 +342,14 @@ public final class JsonEncodingUtils
             }
 
             Variant variant = VARIANT.getObject(block, position);
+            if (supportsVariantBinary) {
+                generator.writeStartObject();
+                generator.writeStringField("metadata", Base64.getEncoder().encodeToString(variant.metadata().toSlice().getBytes()));
+                generator.writeStringField("value", Base64.getEncoder().encodeToString(variant.data().getBytes()));
+                generator.writeEndObject();
+                return;
+            }
+
             String json = VariantUtil.asJson(variant).toStringUtf8();
             if (supportsVariantJson) {
                 generator.writeRawValue(json);

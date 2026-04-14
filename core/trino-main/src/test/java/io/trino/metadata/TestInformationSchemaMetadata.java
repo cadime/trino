@@ -51,12 +51,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.trino.SessionTestUtils.TEST_SESSION;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static io.trino.testing.TestingSession.testSessionBuilder;
-import static java.util.Arrays.stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS;
 import static org.junit.jupiter.api.parallel.ExecutionMode.CONCURRENT;
@@ -309,9 +307,7 @@ public class TestInformationSchemaMetadata
         return testSessionBuilder()
                 .setCatalog("test_catalog")
                 .setSchema("information_schema")
-                .setClientCapabilities(stream(ClientCapabilities.values())
-                        .map(ClientCapabilities::toString)
-                        .collect(toImmutableSet()))
+                .setClientCapabilities(ClientCapabilities.defaultClientCapabilities())
                 .setTransactionId(transactionId)
                 .build()
                 .toConnectorSession();
