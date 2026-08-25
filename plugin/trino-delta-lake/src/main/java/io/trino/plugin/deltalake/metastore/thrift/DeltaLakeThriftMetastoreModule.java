@@ -15,12 +15,20 @@ package io.trino.plugin.deltalake.metastore.thrift;
 
 import com.google.inject.Binder;
 import com.google.inject.Key;
+import com.google.inject.Provides;
 import com.google.inject.Scopes;
+import com.google.inject.Singleton;
 import io.airlift.configuration.AbstractConfigurationAwareModule;
+import io.trino.metastore.HiveMetastoreFactory;
 import io.trino.plugin.deltalake.AllowDeltaLakeManagedTableRename;
 import io.trino.plugin.deltalake.MaxTableParameterLength;
+import io.trino.plugin.deltalake.metastore.DeltaLakeMetastore;
 import io.trino.plugin.deltalake.metastore.DeltaLakeTableOperationsProvider;
+import io.trino.plugin.deltalake.metastore.unitycatalog.UnityCatalogBackedDeltaLakeMetastore;
+import io.trino.plugin.deltalake.metastore.unitycatalog.UnityCatalogViewSupport;
 import io.trino.plugin.hive.metastore.thrift.ThriftMetastoreModule;
+
+import java.util.Optional;
 
 public class DeltaLakeThriftMetastoreModule
         extends AbstractConfigurationAwareModule
@@ -37,5 +45,33 @@ public class DeltaLakeThriftMetastoreModule
         // - Oracle: clob (4294967295)
         // - PostgreSQL: text (unlimited)
         binder.bind(Key.get(int.class, MaxTableParameterLength.class)).toInstance(16777215);
+    }
+
+    @Provides
+    @Singleton
+    public Optional<HiveMetastoreFactory> provideOptionalHiveMetastoreFactory(HiveMetastoreFactory hiveMetastoreFactory)
+    {
+        return Optional.of(hiveMetastoreFactory);
+    }
+
+    @Provides
+    @Singleton
+    public Optional<DeltaLakeMetastore> provideOptionalDeltaLakeMetastore()
+    {
+        return Optional.empty();
+    }
+
+    @Provides
+    @Singleton
+    public Optional<UnityCatalogViewSupport> provideOptionalViewSupport()
+    {
+        return Optional.empty();
+    }
+
+    @Provides
+    @Singleton
+    public Optional<UnityCatalogBackedDeltaLakeMetastore> provideOptionalUnityCatalogMetastore()
+    {
+        return Optional.empty();
     }
 }

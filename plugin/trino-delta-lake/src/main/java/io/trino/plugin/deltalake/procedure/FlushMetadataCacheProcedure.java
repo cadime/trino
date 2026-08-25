@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import io.trino.metastore.cache.CachingHiveMetastore;
+import io.trino.plugin.deltalake.metastore.unitycatalog.UnityCatalogBackedDeltaLakeMetastore;
 import io.trino.plugin.deltalake.statistics.CachingExtendedStatisticsAccess;
 import io.trino.plugin.deltalake.transactionlog.TransactionLogAccess;
 import io.trino.spi.TrinoException;
@@ -52,16 +53,19 @@ public class FlushMetadataCacheProcedure
     }
 
     private final Optional<CachingHiveMetastore> cachingHiveMetastore;
+    private final Optional<UnityCatalogBackedDeltaLakeMetastore> unityCatalogMetastore;
     private final TransactionLogAccess transactionLogAccess;
     private final CachingExtendedStatisticsAccess extendedStatisticsAccess;
 
     @Inject
     public FlushMetadataCacheProcedure(
             Optional<CachingHiveMetastore> cachingHiveMetastore,
+            Optional<UnityCatalogBackedDeltaLakeMetastore> unityCatalogMetastore,
             TransactionLogAccess transactionLogAccess,
             CachingExtendedStatisticsAccess extendedStatisticsAccess)
     {
         this.cachingHiveMetastore = requireNonNull(cachingHiveMetastore, "cachingHiveMetastore is null");
+        this.unityCatalogMetastore = requireNonNull(unityCatalogMetastore, "unityCatalogMetastore is null");
         this.transactionLogAccess = requireNonNull(transactionLogAccess, "transactionLogAccess is null");
         this.extendedStatisticsAccess = requireNonNull(extendedStatisticsAccess, "extendedStatisticsAccess is null");
     }
@@ -90,12 +94,14 @@ public class FlushMetadataCacheProcedure
     {
         if (schemaName.isEmpty() && tableName.isEmpty()) {
             cachingHiveMetastore.ifPresent(CachingHiveMetastore::flushCache);
+            unityCatalogMetastore.ifPresent(UnityCatalogBackedDeltaLakeMetastore::invalidateAll);
             transactionLogAccess.flushCache();
             extendedStatisticsAccess.invalidateCache();
         }
         else if (schemaName.isPresent() && tableName.isPresent()) {
             SchemaTableName schemaTableName = new SchemaTableName(schemaName.get(), tableName.get());
             cachingHiveMetastore.ifPresent(cachingMetastore -> cachingMetastore.invalidateTable(schemaName.get(), tableName.get()));
+            unityCatalogMetastore.ifPresent(uc -> uc.invalidateTable(schemaName.get(), tableName.get()));
             transactionLogAccess.invalidateCache(schemaTableName, Optional.empty());
             extendedStatisticsAccess.invalidateCache(schemaTableName, Optional.empty());
         }

@@ -50,9 +50,9 @@ import io.trino.plugin.deltalake.metastore.DeltaLakeMetastore;
 import io.trino.plugin.deltalake.metastore.DeltaLakeTableMetadataScheduler;
 import io.trino.plugin.deltalake.metastore.DeltaLakeTableMetadataScheduler.TableUpdateInfo;
 import io.trino.plugin.deltalake.metastore.DeltaMetastoreTable;
-import io.trino.plugin.deltalake.metastore.HiveMetastoreBackedDeltaLakeMetastore;
 import io.trino.plugin.deltalake.metastore.NotADeltaLakeTableException;
 import io.trino.plugin.deltalake.metastore.VendedCredentialsHandle;
+import io.trino.plugin.deltalake.metastore.unitycatalog.UnityCatalogViewSupport;
 import io.trino.plugin.deltalake.procedure.DeltaLakeTableExecuteHandle;
 import io.trino.plugin.deltalake.procedure.DeltaLakeTableProcedureId;
 import io.trino.plugin.deltalake.procedure.DeltaTableOptimizeHandle;
@@ -452,7 +452,8 @@ public class DeltaLakeMetadata
     private final DeltaLakeTableStatisticsProvider tableStatisticsProvider;
     private final DeltaLakeFileSystemFactory fileSystemFactory;
     private final TypeManager typeManager;
-    private final TrinoViewHiveMetastore trinoViewHiveMetastore;
+    private final Optional<TrinoViewHiveMetastore> trinoViewHiveMetastore;
+    private final Optional<UnityCatalogViewSupport> unityCatalogViewSupport;
     private final CheckpointWriterManager checkpointWriterManager;
     private final long defaultCheckpointInterval;
     private final int domainCompactionThreshold;
@@ -488,7 +489,8 @@ public class DeltaLakeMetadata
             DeltaLakeTableStatisticsProvider tableStatisticsProvider,
             DeltaLakeFileSystemFactory fileSystemFactory,
             TypeManager typeManager,
-            TrinoViewHiveMetastore trinoViewHiveMetastore,
+            Optional<TrinoViewHiveMetastore> trinoViewHiveMetastore,
+            Optional<UnityCatalogViewSupport> unityCatalogViewSupport,
             int domainCompactionThreshold,
             boolean unsafeWritesEnabled,
             JsonCodec<DataFileInfo> dataFileInfoCodec,
@@ -511,6 +513,8 @@ public class DeltaLakeMetadata
         this.fileSystemFactory = requireNonNull(fileSystemFactory, "fileSystemFactory is null");
         this.typeManager = requireNonNull(typeManager, "typeManager is null");
         this.trinoViewHiveMetastore = requireNonNull(trinoViewHiveMetastore, "trinoViewHiveMetastore is null");
+        // Empty when running on a metastore that does not store Trino views (e.g. Unity Catalog).
+        this.unityCatalogViewSupport = requireNonNull(unityCatalogViewSupport, "unityCatalogViewSupport is null");
         this.domainCompactionThreshold = domainCompactionThreshold;
         this.unsafeWritesEnabled = unsafeWritesEnabled;
         this.dataFileInfoCodec = requireNonNull(dataFileInfoCodec, "dataFileInfoCodec is null");
@@ -711,10 +715,17 @@ public class DeltaLakeMetadata
             return null;
         }
         Optional<Table> metastoreTable = metastore.getRawMetastoreTable(tableName.getSchemaName(), tableName.getTableName());
-        if (metastoreTable.isEmpty()) {
-            return null;
+        DeltaMetastoreTable table;
+        if (metastoreTable.isPresent()) {
+            table = convertToDeltaMetastoreTable(metastoreTable.get());
         }
-        DeltaMetastoreTable table = convertToDeltaMetastoreTable(metastoreTable.get());
+        else {
+            Optional<DeltaMetastoreTable> direct = metastore.getTable(tableName.getSchemaName(), tableName.getTableName());
+            if (direct.isEmpty()) {
+                return null;
+            }
+            table = direct.get();
+        }
         boolean managed = table.managed();
 
         String tableLocation = table.location();
@@ -750,7 +761,8 @@ public class DeltaLakeMetadata
             return null;
         }
         verifySupportedColumnMapping(getColumnMappingMode(metadataEntry, protocolEntry));
-        if (metadataScheduler.canStoreTableMetadata(session, metadataEntry.getSchemaString(), Optional.ofNullable(metadataEntry.getDescription())) &&
+        if (metastoreTable.isPresent() &&
+                metadataScheduler.canStoreTableMetadata(session, metadataEntry.getSchemaString(), Optional.ofNullable(metadataEntry.getDescription())) &&
                 endVersion.isEmpty() &&
                 !isSameTransactionVersion(metastoreTable.get(), tableSnapshot)) {
             tableUpdateInfos.put(tableName, new TableUpdateInfo(session, tableSnapshot.getVersion(), metadataEntry.getSchemaString(), Optional.ofNullable(metadataEntry.getDescription())));
@@ -917,10 +929,10 @@ public class DeltaLakeMetadata
 
     private RelationType resolveRelationType(TableInfo tableInfo)
     {
-        if (tableInfo.extendedRelationType() == TableInfo.ExtendedRelationType.TRINO_VIEW) {
-            return RelationType.VIEW;
-        }
-        return RelationType.TABLE;
+        return switch (tableInfo.extendedRelationType()) {
+            case TRINO_VIEW, OTHER_VIEW -> RelationType.VIEW;
+            default -> RelationType.TABLE;
+        };
     }
 
     @Override
@@ -1020,25 +1032,37 @@ public class DeltaLakeMetadata
 
         try {
             Optional<Table> metastoreTable = metastore.getRawMetastoreTable(tableName.getSchemaName(), tableName.getTableName());
-            if (metastoreTable.isEmpty()) {
-                // this may happen when table is being deleted concurrently
-                return null;
+            DeltaMetastoreTable deltaMetastoreTable;
+            if (metastoreTable.isPresent()) {
+                Table table = metastoreTable.get();
+                verifyDeltaLakeTable(table);
+                deltaMetastoreTable = convertToDeltaMetastoreTable(table);
+            }
+            else {
+                Optional<DeltaMetastoreTable> direct = metastore.getTable(tableName.getSchemaName(), tableName.getTableName());
+                if (direct.isEmpty()) {
+                    // this may happen when table is being deleted concurrently
+                    return null;
+                }
+                deltaMetastoreTable = direct.get();
             }
 
-            Table table = metastoreTable.get();
-            verifyDeltaLakeTable(table);
-
-            DeltaMetastoreTable deltaMetastoreTable = convertToDeltaMetastoreTable(table);
             String tableLocation = deltaMetastoreTable.location();
             TrinoFileSystem fileSystem = fileSystemFactory.create(session, deltaMetastoreTable);
-            if (canUseTableParametersFromMetastore(session, fileSystem, table, tableLocation)) {
-                // Don't check TABLE_COMMENT existence because it's not stored in case of null comment
-                return RelationCommentMetadata.forRelation(tableName, Optional.ofNullable(table.getParameters().get(TABLE_COMMENT)));
+            if (metastoreTable.isPresent()) {
+                Table table = metastoreTable.get();
+                if (canUseTableParametersFromMetastore(session, fileSystem, table, tableLocation)) {
+                    // Don't check TABLE_COMMENT existence because it's not stored in case of null comment
+                    return RelationCommentMetadata.forRelation(tableName, Optional.ofNullable(table.getParameters().get(TABLE_COMMENT)));
+                }
             }
 
             TableSnapshot snapshot = getSnapshot(session, deltaMetastoreTable, Optional.empty());
             MetadataEntry metadata = transactionLogAccess.getMetadataEntry(session, fileSystem, snapshot);
-            enqueueUpdateInfo(session, table.getDatabaseName(), table.getTableName(), snapshot.getVersion(), metadata.getSchemaString(), Optional.ofNullable(metadata.getDescription()));
+            if (metastoreTable.isPresent()) {
+                Table table = metastoreTable.get();
+                enqueueUpdateInfo(session, table.getDatabaseName(), table.getTableName(), snapshot.getVersion(), metadata.getSchemaString(), Optional.ofNullable(metadata.getDescription()));
+            }
             return RelationCommentMetadata.forRelation(tableName, Optional.ofNullable(metadata.getDescription()));
         }
         catch (RuntimeException e) {
@@ -1104,21 +1128,30 @@ public class DeltaLakeMetadata
                 }
 
                 Optional<Table> metastoreTable = metastore.getRawMetastoreTable(tableName.getSchemaName(), tableName.getTableName());
-                if (metastoreTable.isEmpty()) {
-                    // this may happen when table is being deleted concurrently,
-                    continue;
+                DeltaMetastoreTable deltaMetastoreTable;
+                if (metastoreTable.isPresent()) {
+                    Table table = metastoreTable.get();
+                    verifyDeltaLakeTable(table);
+                    deltaMetastoreTable = convertToDeltaMetastoreTable(table);
+                }
+                else {
+                    Optional<DeltaMetastoreTable> direct = metastore.getTable(tableName.getSchemaName(), tableName.getTableName());
+                    if (direct.isEmpty()) {
+                        // this may happen when table is being deleted concurrently,
+                        continue;
+                    }
+                    deltaMetastoreTable = direct.get();
                 }
 
-                Table table = metastoreTable.get();
-                verifyDeltaLakeTable(table);
-
-                String tableLocation = HiveMetastoreBackedDeltaLakeMetastore.getTableLocation(table);
-                DeltaMetastoreTable deltaMetastoreTable = convertToDeltaMetastoreTable(table);
+                String tableLocation = deltaMetastoreTable.location();
                 TrinoFileSystem fileSystem = fileSystemFactory.create(session, deltaMetastoreTable);
-                if (containsSchemaString(table) && canUseTableParametersFromMetastore(session, fileSystem, table, tableLocation)) {
-                    List<ColumnMetadata> columnsMetadata = metadataScheduler.getColumnsMetadata(table);
-                    relationColumns.put(tableName, RelationColumnsMetadata.forTable(tableName, columnsMetadata));
-                    continue;
+                if (metastoreTable.isPresent()) {
+                    Table table = metastoreTable.get();
+                    if (containsSchemaString(table) && canUseTableParametersFromMetastore(session, fileSystem, table, tableLocation)) {
+                        List<ColumnMetadata> columnsMetadata = metadataScheduler.getColumnsMetadata(table);
+                        relationColumns.put(tableName, RelationColumnsMetadata.forTable(tableName, columnsMetadata));
+                        continue;
+                    }
                 }
 
                 TransactionLogReader transactionLogReader = transactionLogReaderFactory.createReader(deltaMetastoreTable);
@@ -1127,7 +1160,10 @@ public class DeltaLakeMetadata
                 MetadataEntry metadata = transactionLogAccess.getMetadataEntry(session, fileSystem, snapshot);
                 ProtocolEntry protocol = transactionLogAccess.getProtocolEntry(session, fileSystem, snapshot);
                 List<ColumnMetadata> columnMetadata = getTableColumnMetadata(metadata, protocol);
-                enqueueUpdateInfo(session, table.getDatabaseName(), table.getTableName(), snapshot.getVersion(), metadata.getSchemaString(), Optional.ofNullable(metadata.getDescription()));
+                if (metastoreTable.isPresent()) {
+                    Table table = metastoreTable.get();
+                    enqueueUpdateInfo(session, table.getDatabaseName(), table.getTableName(), snapshot.getVersion(), metadata.getSchemaString(), Optional.ofNullable(metadata.getDescription()));
+                }
                 relationColumns.put(tableName, RelationColumnsMetadata.forTable(tableName, columnMetadata));
             }
             catch (NotADeltaLakeTableException | IOException _) {
@@ -1901,13 +1937,13 @@ public class DeltaLakeMetadata
     @Override
     public void setViewComment(ConnectorSession session, SchemaTableName viewName, Optional<String> comment)
     {
-        trinoViewHiveMetastore.updateViewComment(session, viewName, comment);
+        viewMetastoreOrThrow().updateViewComment(session, viewName, comment);
     }
 
     @Override
     public void setViewColumnComment(ConnectorSession session, SchemaTableName viewName, String columnName, Optional<String> comment)
     {
-        trinoViewHiveMetastore.updateViewColumnComment(session, viewName, columnName, comment);
+        viewMetastoreOrThrow().updateViewColumnComment(session, viewName, columnName, comment);
     }
 
     @Override
@@ -3442,31 +3478,46 @@ public class DeltaLakeMetadata
     public void createView(ConnectorSession session, SchemaTableName viewName, ConnectorViewDefinition definition, Map<String, Object> viewProperties, boolean replace)
     {
         checkArgument(viewProperties.isEmpty(), "This connector does not support creating views with properties");
-        trinoViewHiveMetastore.createView(session, viewName, definition, replace);
+        viewMetastoreOrThrow().createView(session, viewName, definition, replace);
     }
 
     @Override
     public void dropView(ConnectorSession session, SchemaTableName viewName)
     {
-        trinoViewHiveMetastore.dropView(viewName);
+        viewMetastoreOrThrow().dropView(viewName);
     }
 
     @Override
     public List<SchemaTableName> listViews(ConnectorSession session, Optional<String> schemaName)
     {
-        return trinoViewHiveMetastore.listViews(schemaName);
+        if (trinoViewHiveMetastore.isPresent()) {
+            return trinoViewHiveMetastore.get().listViews(schemaName);
+        }
+        return unityCatalogViewSupport.map(s -> s.listViews(schemaName)).orElse(ImmutableList.of());
     }
 
     @Override
     public Map<SchemaTableName, ConnectorViewDefinition> getViews(ConnectorSession session, Optional<String> schemaName)
     {
-        return trinoViewHiveMetastore.getViews(schemaName);
+        if (trinoViewHiveMetastore.isPresent()) {
+            return trinoViewHiveMetastore.get().getViews(schemaName);
+        }
+        return unityCatalogViewSupport.map(s -> s.getViews(schemaName)).orElse(ImmutableMap.of());
     }
 
     @Override
     public Optional<ConnectorViewDefinition> getView(ConnectorSession session, SchemaTableName viewName)
     {
-        return trinoViewHiveMetastore.getView(viewName);
+        if (trinoViewHiveMetastore.isPresent()) {
+            return trinoViewHiveMetastore.get().getView(viewName);
+        }
+        return unityCatalogViewSupport.flatMap(s -> s.getView(viewName));
+    }
+
+    private TrinoViewHiveMetastore viewMetastoreOrThrow()
+    {
+        return trinoViewHiveMetastore.orElseThrow(() ->
+                new TrinoException(NOT_SUPPORTED, "Views are not supported with this metastore"));
     }
 
     private void setRollback(Runnable action)

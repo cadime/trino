@@ -112,6 +112,7 @@
         <module>plugin/trino-session-property-managers</module>
         <module>plugin/trino-singlestore</module>
         <module>plugin/trino-snowflake</module>
+        <module>plugin/trino-spark-functions</module>
         <module>plugin/trino-spooling-filesystem</module>
         <module>plugin/trino-sqlserver</module>
         <module>plugin/trino-teradata-functions</module>
@@ -1414,6 +1415,12 @@
             <dependency>
                 <groupId>io.trino</groupId>
                 <artifactId>trino-snowflake</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.trino</groupId>
+                <artifactId>trino-spark-functions</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

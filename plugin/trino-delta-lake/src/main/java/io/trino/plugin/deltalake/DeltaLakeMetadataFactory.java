@@ -18,8 +18,10 @@ import io.airlift.concurrent.BoundedExecutor;
 import io.airlift.json.JsonCodec;
 import io.trino.metastore.HiveMetastoreFactory;
 import io.trino.metastore.cache.CachingHiveMetastore;
+import io.trino.plugin.deltalake.metastore.DeltaLakeMetastore;
 import io.trino.plugin.deltalake.metastore.DeltaLakeTableMetadataScheduler;
 import io.trino.plugin.deltalake.metastore.HiveMetastoreBackedDeltaLakeMetastore;
+import io.trino.plugin.deltalake.metastore.unitycatalog.UnityCatalogViewSupport;
 import io.trino.plugin.deltalake.statistics.CachingExtendedStatisticsAccess;
 import io.trino.plugin.deltalake.statistics.FileBasedTableStatisticsProvider;
 import io.trino.plugin.deltalake.transactionlog.TransactionLogAccess;
@@ -43,7 +45,9 @@ import static java.util.Objects.requireNonNull;
 
 public class DeltaLakeMetadataFactory
 {
-    private final HiveMetastoreFactory hiveMetastoreFactory;
+    private final Optional<HiveMetastoreFactory> hiveMetastoreFactory;
+    private final Optional<DeltaLakeMetastore> directDeltaLakeMetastore;
+    private final Optional<UnityCatalogViewSupport> unityCatalogViewSupport;
     private final DeltaLakeFileSystemFactory fileSystemFactory;
     private final TransactionLogAccess transactionLogAccess;
     private final TypeManager typeManager;
@@ -68,7 +72,9 @@ public class DeltaLakeMetadataFactory
 
     @Inject
     public DeltaLakeMetadataFactory(
-            HiveMetastoreFactory hiveMetastoreFactory,
+            Optional<HiveMetastoreFactory> hiveMetastoreFactory,
+            Optional<DeltaLakeMetastore> directDeltaLakeMetastore,
+            Optional<UnityCatalogViewSupport> unityCatalogViewSupport,
             DeltaLakeFileSystemFactory fileSystemFactory,
             TransactionLogAccess transactionLogAccess,
             TypeManager typeManager,
@@ -86,7 +92,9 @@ public class DeltaLakeMetadataFactory
             @ForDeltaLakeMetadata ExecutorService executorService,
             TransactionLogReaderFactory transactionLogReaderFactory)
     {
-        this.hiveMetastoreFactory = requireNonNull(hiveMetastoreFactory, "hiveMetastore is null");
+        this.hiveMetastoreFactory = requireNonNull(hiveMetastoreFactory, "hiveMetastoreFactory is null");
+        this.directDeltaLakeMetastore = requireNonNull(directDeltaLakeMetastore, "directDeltaLakeMetastore is null");
+        this.unityCatalogViewSupport = requireNonNull(unityCatalogViewSupport, "unityCatalogViewSupport is null");
         this.fileSystemFactory = requireNonNull(fileSystemFactory, "fileSystemFactory is null");
         this.transactionLogAccess = requireNonNull(transactionLogAccess, "transactionLogAccess is null");
         this.typeManager = requireNonNull(typeManager, "typeManager is null");
@@ -117,26 +125,37 @@ public class DeltaLakeMetadataFactory
 
     public DeltaLakeMetadata create(ConnectorIdentity identity)
     {
-        CachingHiveMetastore cachingHiveMetastore = createPerTransactionCache(
-                hiveMetastoreFactory.createMetastore(Optional.of(identity)),
-                perTransactionMetastoreCacheMaximumSize);
-        HiveMetastoreBackedDeltaLakeMetastore deltaLakeMetastore = new HiveMetastoreBackedDeltaLakeMetastore(cachingHiveMetastore);
+        DeltaLakeMetastore metastore;
+        Optional<TrinoViewHiveMetastore> trinoViewHiveMetastore;
+        if (directDeltaLakeMetastore.isPresent()) {
+            metastore = directDeltaLakeMetastore.get();
+            trinoViewHiveMetastore = Optional.empty();
+        }
+        else {
+            HiveMetastoreFactory factory = hiveMetastoreFactory
+                    .orElseThrow(() -> new IllegalStateException("Either DeltaLakeMetastore or HiveMetastoreFactory must be bound"));
+            CachingHiveMetastore cachingHiveMetastore = createPerTransactionCache(
+                    factory.createMetastore(Optional.of(identity)),
+                    perTransactionMetastoreCacheMaximumSize);
+            metastore = new HiveMetastoreBackedDeltaLakeMetastore(cachingHiveMetastore);
+            trinoViewHiveMetastore = Optional.of(new TrinoViewHiveMetastore(
+                    cachingHiveMetastore,
+                    usingSystemSecurity,
+                    trinoVersion,
+                    "Trino Delta Lake connector"));
+        }
         FileBasedTableStatisticsProvider tableStatisticsProvider = new FileBasedTableStatisticsProvider(
                 typeManager,
                 transactionLogAccess,
                 statisticsAccess);
-        TrinoViewHiveMetastore trinoViewHiveMetastore = new TrinoViewHiveMetastore(
-                cachingHiveMetastore,
-                usingSystemSecurity,
-                trinoVersion,
-                "Trino Delta Lake connector");
         return new DeltaLakeMetadata(
-                deltaLakeMetastore,
+                metastore,
                 transactionLogAccess,
                 tableStatisticsProvider,
                 fileSystemFactory,
                 typeManager,
                 trinoViewHiveMetastore,
+                unityCatalogViewSupport,
                 domainCompactionThreshold,
                 unsafeWritesEnabled,
                 dataFileInfoCodec,

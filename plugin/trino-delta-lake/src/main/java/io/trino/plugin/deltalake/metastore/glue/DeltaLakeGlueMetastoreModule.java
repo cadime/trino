@@ -15,17 +15,23 @@ package io.trino.plugin.deltalake.metastore.glue;
 
 import com.google.inject.Binder;
 import com.google.inject.Key;
+import com.google.inject.Provides;
 import com.google.inject.Scopes;
 import com.google.inject.Singleton;
 import com.google.inject.multibindings.ProvidesIntoOptional;
 import io.airlift.configuration.AbstractConfigurationAwareModule;
+import io.trino.metastore.HiveMetastoreFactory;
 import io.trino.plugin.deltalake.AllowDeltaLakeManagedTableRename;
 import io.trino.plugin.deltalake.MaxTableParameterLength;
+import io.trino.plugin.deltalake.metastore.DeltaLakeMetastore;
 import io.trino.plugin.deltalake.metastore.DeltaLakeTableOperationsProvider;
+import io.trino.plugin.deltalake.metastore.unitycatalog.UnityCatalogBackedDeltaLakeMetastore;
+import io.trino.plugin.deltalake.metastore.unitycatalog.UnityCatalogViewSupport;
 import io.trino.plugin.hive.metastore.glue.GlueHiveMetastore;
 import io.trino.plugin.hive.metastore.glue.GlueMetastoreModule;
 
 import java.util.EnumSet;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.google.inject.multibindings.ProvidesIntoOptional.Type.ACTUAL;
@@ -54,5 +60,33 @@ public class DeltaLakeGlueMetastoreModule
             return EnumSet.of(GlueHiveMetastore.TableKind.DELTA);
         }
         return EnumSet.allOf(GlueHiveMetastore.TableKind.class);
+    }
+
+    @Provides
+    @Singleton
+    public Optional<HiveMetastoreFactory> provideOptionalHiveMetastoreFactory(HiveMetastoreFactory hiveMetastoreFactory)
+    {
+        return Optional.of(hiveMetastoreFactory);
+    }
+
+    @Provides
+    @Singleton
+    public Optional<DeltaLakeMetastore> provideOptionalDeltaLakeMetastore()
+    {
+        return Optional.empty();
+    }
+
+    @Provides
+    @Singleton
+    public Optional<UnityCatalogViewSupport> provideOptionalViewSupport()
+    {
+        return Optional.empty();
+    }
+
+    @Provides
+    @Singleton
+    public Optional<UnityCatalogBackedDeltaLakeMetastore> provideOptionalUnityCatalogMetastore()
+    {
+        return Optional.empty();
     }
 }
