@@ -100,8 +100,11 @@ public class UnityCatalogViewSupport
                 type = UnityCatalogTypeMapping.parse(column.typeText(), typeManager);
             }
             catch (RuntimeException e) {
-                LOG.warn(e, "Cannot map Unity Catalog type '%s' for view %s.%s; skipping view",
-                        column.typeText(), view.name().getSchemaName(), view.name().getTableName());
+                LOG.warn(e,
+                        "Cannot map Unity Catalog type '%s' for view %s.%s; skipping view",
+                        column.typeText(),
+                        view.name().getSchemaName(),
+                        view.name().getTableName());
                 throw e;
             }
             columns.add(new ConnectorViewDefinition.ViewColumn(column.name(), type.getTypeId(), column.comment()));

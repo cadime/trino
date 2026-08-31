@@ -25,7 +25,8 @@ public class StaticTokenAuthProvider
     @Inject
     public StaticTokenAuthProvider(DeltaLakeUnityCatalogMetastoreConfig config)
     {
-        String token = requireNonNull(config.getToken().orElse(null),
+        String token = requireNonNull(
+                config.getToken().orElse(null),
                 "delta.unity-catalog.token must be set when delta.unity-catalog.security=token");
         this.headerValue = "Bearer " + token;
     }

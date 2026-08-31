@@ -132,7 +132,9 @@ public final class UnityCatalogTypeMapping
         };
     }
 
-    /** Split a string by {@code delim} ignoring delimiters inside angle brackets or parentheses. */
+    /**
+     * Split a string by {@code delim} ignoring delimiters inside angle brackets or parentheses.
+     */
     private static List<String> splitTopLevel(String input, char delim)
     {
         ImmutableList.Builder<String> parts = ImmutableList.builder();
@@ -155,7 +157,9 @@ public final class UnityCatalogTypeMapping
         return parts.build();
     }
 
-    /** Find the first occurrence of {@code ch} at depth 0 (outside any brackets), or -1. */
+    /**
+     * Find the first occurrence of {@code ch} at depth 0 (outside any brackets), or -1.
+     */
     private static int findTopLevel(String input, char ch)
     {
         int depth = 0;

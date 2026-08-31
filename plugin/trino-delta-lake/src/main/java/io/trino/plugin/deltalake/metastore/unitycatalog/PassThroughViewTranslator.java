@@ -30,17 +30,87 @@ public class PassThroughViewTranslator
      * one in an identifier position, we wrap it in double quotes so the Trino parser accepts it.
      */
     private static final Set<String> TRINO_RESERVED = ImmutableSet.of(
-            "ALTER", "AND", "AS", "BETWEEN", "BY", "CASE", "CAST", "CONSTRAINT", "CREATE",
-            "CROSS", "CUBE", "CURRENT_CATALOG", "CURRENT_DATE", "CURRENT_PATH", "CURRENT_ROLE",
-            "CURRENT_SCHEMA", "CURRENT_TIME", "CURRENT_TIMESTAMP", "CURRENT_USER", "DEALLOCATE",
-            "DELETE", "DESCRIBE", "DISTINCT", "DROP", "ELSE", "END", "ESCAPE", "EXCEPT",
-            "EXECUTE", "EXISTS", "EXTRACT", "FALSE", "FOR", "FROM", "FULL", "GROUP", "GROUPING",
-            "HAVING", "IN", "INNER", "INSERT", "INTERSECT", "INTO", "IS", "JOIN", "JSON_ARRAY",
-            "JSON_EXISTS", "JSON_OBJECT", "JSON_QUERY", "JSON_VALUE", "LEFT", "LIKE", "LISTAGG",
-            "LOCALTIME", "LOCALTIMESTAMP", "NATURAL", "NORMALIZE", "NOT", "NULL", "ON", "OR",
-            "ORDER", "OUTER", "PREPARE", "RECURSIVE", "RIGHT", "ROLLUP", "SELECT", "SKIP",
-            "TABLE", "THEN", "TRIM", "TRUE", "UESCAPE", "UNION", "UNNEST", "USING", "VALUES",
-            "WHEN", "WHERE", "WITH");
+            "ALTER",
+            "AND",
+            "AS",
+            "BETWEEN",
+            "BY",
+            "CASE",
+            "CAST",
+            "CONSTRAINT",
+            "CREATE",
+            "CROSS",
+            "CUBE",
+            "CURRENT_CATALOG",
+            "CURRENT_DATE",
+            "CURRENT_PATH",
+            "CURRENT_ROLE",
+            "CURRENT_SCHEMA",
+            "CURRENT_TIME",
+            "CURRENT_TIMESTAMP",
+            "CURRENT_USER",
+            "DEALLOCATE",
+            "DELETE",
+            "DESCRIBE",
+            "DISTINCT",
+            "DROP",
+            "ELSE",
+            "END",
+            "ESCAPE",
+            "EXCEPT",
+            "EXECUTE",
+            "EXISTS",
+            "EXTRACT",
+            "FALSE",
+            "FOR",
+            "FROM",
+            "FULL",
+            "GROUP",
+            "GROUPING",
+            "HAVING",
+            "IN",
+            "INNER",
+            "INSERT",
+            "INTERSECT",
+            "INTO",
+            "IS",
+            "JOIN",
+            "JSON_ARRAY",
+            "JSON_EXISTS",
+            "JSON_OBJECT",
+            "JSON_QUERY",
+            "JSON_VALUE",
+            "LEFT",
+            "LIKE",
+            "LISTAGG",
+            "LOCALTIME",
+            "LOCALTIMESTAMP",
+            "NATURAL",
+            "NORMALIZE",
+            "NOT",
+            "NULL",
+            "ON",
+            "OR",
+            "ORDER",
+            "OUTER",
+            "PREPARE",
+            "RECURSIVE",
+            "RIGHT",
+            "ROLLUP",
+            "SELECT",
+            "SKIP",
+            "TABLE",
+            "THEN",
+            "TRIM",
+            "TRUE",
+            "UESCAPE",
+            "UNION",
+            "UNNEST",
+            "USING",
+            "VALUES",
+            "WHEN",
+            "WHERE",
+            "WITH");
 
     /**
      * Tokens that, when immediately preceding a reserved word, indicate the reserved word is
@@ -51,9 +121,39 @@ public class PassThroughViewTranslator
      * and arithmetic operators.
      */
     private static final Set<String> IDENTIFIER_POSITION_PREVIOUS = ImmutableSet.of(
-            ".", "AS", ",", "(", "=", "<", ">", "<=", ">=", "<>", "!=", "+", "-", "*", "/", "%", "||",
-            "SELECT", "BY", "ON", "WHERE", "HAVING", "SET", "IN", "BETWEEN", "LIKE",
-            "AND", "OR", "NOT", "WHEN", "THEN", "ELSE", "USING");
+            ".",
+            "AS",
+            ",",
+            "(",
+            "=",
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "<>",
+            "!=",
+            "+",
+            "-",
+            "*",
+            "/",
+            "%",
+            "||",
+            "SELECT",
+            "BY",
+            "ON",
+            "WHERE",
+            "HAVING",
+            "SET",
+            "IN",
+            "BETWEEN",
+            "LIKE",
+            "AND",
+            "OR",
+            "NOT",
+            "WHEN",
+            "THEN",
+            "ELSE",
+            "USING");
 
     /**
      * Reserved words that act as built-in expressions/literals: they evaluate to a value
@@ -61,10 +161,19 @@ public class PassThroughViewTranslator
      * column references, which breaks the query.
      */
     private static final Set<String> EXPRESSION_LITERALS = ImmutableSet.of(
-            "TRUE", "FALSE", "NULL",
-            "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP", "CURRENT_USER",
-            "CURRENT_PATH", "CURRENT_ROLE", "CURRENT_SCHEMA", "CURRENT_CATALOG",
-            "LOCALTIME", "LOCALTIMESTAMP");
+            "TRUE",
+            "FALSE",
+            "NULL",
+            "CURRENT_DATE",
+            "CURRENT_TIME",
+            "CURRENT_TIMESTAMP",
+            "CURRENT_USER",
+            "CURRENT_PATH",
+            "CURRENT_ROLE",
+            "CURRENT_SCHEMA",
+            "CURRENT_CATALOG",
+            "LOCALTIME",
+            "LOCALTIMESTAMP");
 
     @Override
     public String translate(UnityCatalogView view)
@@ -278,11 +387,37 @@ public class PassThroughViewTranslator
         //
         // DISTINCT/ALL are aggregate or set-operator modifiers (e.g. {@code count(DISTINCT x)},
         // {@code UNION ALL}); always keywords.
-        return Set.of("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP",
-                "WITH", "FROM", "WHERE", "HAVING", "JOIN", "ON", "USING", "INTO",
-                "UNION", "INTERSECT", "EXCEPT", "BY", "CASE", "WHEN", "THEN", "ELSE",
-                "EXECUTE", "PREPARE", "DEALLOCATE", "DESCRIBE", "SET",
-                "DISTINCT", "ALL").contains(word);
+        return Set.of(
+                "SELECT",
+                "INSERT",
+                "UPDATE",
+                "DELETE",
+                "CREATE",
+                "ALTER",
+                "DROP",
+                "WITH",
+                "FROM",
+                "WHERE",
+                "HAVING",
+                "JOIN",
+                "ON",
+                "USING",
+                "INTO",
+                "UNION",
+                "INTERSECT",
+                "EXCEPT",
+                "BY",
+                "CASE",
+                "WHEN",
+                "THEN",
+                "ELSE",
+                "EXECUTE",
+                "PREPARE",
+                "DEALLOCATE",
+                "DESCRIBE",
+                "SET",
+                "DISTINCT",
+                "ALL").contains(word);
     }
 
     private static Token peekNextSignificant(List<Token> tokens, int from)
@@ -316,11 +451,12 @@ public class PassThroughViewTranslator
 
     // ---------- tokeniser ----------
 
-    private enum TokenKind { WORD, STRING_LITERAL, QUOTED_IDENT, BACKTICK_IDENT, COMMENT, PUNCTUATION, WHITESPACE }
-
-    private record Token(TokenKind kind, String text)
+    private enum TokenKind
     {
+        WORD, STRING_LITERAL, QUOTED_IDENT, BACKTICK_IDENT, COMMENT, PUNCTUATION, WHITESPACE
     }
+
+    private record Token(TokenKind kind, String text) {}
 
     private static List<Token> tokenize(String sql)
     {

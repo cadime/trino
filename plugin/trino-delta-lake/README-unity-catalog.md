@@ -1,6 +1,6 @@
 # Unity Catalog Integration for Trino Delta Lake
 
-This document describes the Databricks Unity Catalog (UC) metastore backend for the Trino Delta Lake connector, implemented on top of Trino R480.
+This document describes the Databricks Unity Catalog (UC) metastore backend for the Trino Delta Lake connector, implemented on top of Trino R483.
 
 ## Overview
 
@@ -28,7 +28,7 @@ plugin/trino-delta-lake/src/main/java/io/trino/plugin/deltalake/metastore/unityc
 | No UC type parser | Types come from the Delta transaction log — UC column metadata is redundant |
 | OAuth2 + bearer token auth | Production-grade auth without a Databricks SDK dependency |
 | Airlift `HttpClient` + `JsonCodec` | Idiomatic Trino — mirrors the Iceberg REST catalog |
-| Single branch `unity_catalog` | All work is on one branch, no feature flags |
+| Single branch `unity_catalog_480` | All work is on one branch, no feature flags |
 
 ## Files
 

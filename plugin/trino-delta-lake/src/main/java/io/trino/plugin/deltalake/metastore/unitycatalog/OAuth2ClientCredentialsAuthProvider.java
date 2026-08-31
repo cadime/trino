@@ -96,7 +96,8 @@ public class OAuth2ClientCredentialsAuthProvider
                 .build();
         StringResponseHandler.StringResponse response = httpClient.execute(request, createStringResponseHandler());
         if (response.getStatusCode() < 200 || response.getStatusCode() >= 300) {
-            throw new TrinoException(DELTA_LAKE_BAD_DATA,
+            throw new TrinoException(
+                    DELTA_LAKE_BAD_DATA,
                     "Failed to fetch OAuth2 token from " + tokenUri + ". Status: " + response.getStatusCode() + ", Body: " + response.getBody());
         }
         TokenResponse parsed = TOKEN_CODEC.fromJson(response.getBody());

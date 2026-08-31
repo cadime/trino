@@ -76,7 +76,9 @@ public class UnityCatalogBackedDeltaLakeMetastore
             "spark.internal.streaming_table.backing_table_path",
             "spark.internal.pipelines.backing_table_path");
 
-    /** Table types that DLT manages but Trino can still read as plain Delta. */
+    /**
+     * Table types that DLT manages but Trino can still read as plain Delta.
+     */
     private static final Set<String> DLT_TABLE_TYPES = ImmutableSet.of("STREAMING_TABLE", "MATERIALIZED_VIEW");
 
     /**
@@ -96,9 +98,12 @@ public class UnityCatalogBackedDeltaLakeMetastore
     private final HttpClient httpClient;
     private final boolean hideNonDeltaLakeTables;
 
-    @Nullable private final Cache<String, List<String>> schemasCache;
-    @Nullable private final Cache<String, List<TableInfo>> tablesCache;
-    @Nullable private final Cache<SchemaTableName, Optional<TableResponse>> tableCache;
+    @Nullable
+    private final Cache<String, List<String>> schemasCache;
+    @Nullable
+    private final Cache<String, List<TableInfo>> tablesCache;
+    @Nullable
+    private final Cache<SchemaTableName, Optional<TableResponse>> tableCache;
 
     @Inject
     public UnityCatalogBackedDeltaLakeMetastore(
@@ -241,7 +246,8 @@ public class UnityCatalogBackedDeltaLakeMetastore
         }
         String location = resolveStorageLocation(table);
         if (location == null) {
-            throw new TrinoException(DELTA_LAKE_BAD_DATA,
+            throw new TrinoException(
+                    DELTA_LAKE_BAD_DATA,
                     "Unity Catalog table %s.%s has no storage_location".formatted(databaseName, tableName));
         }
         String tableType = table.tableType();
@@ -303,7 +309,9 @@ public class UnityCatalogBackedDeltaLakeMetastore
                 Optional.ofNullable(table.comment()).filter(s -> !s.isBlank())));
     }
 
-    /** Returns raw Unity Catalog table/view metadata, or empty for 404. Results are cached when caching is enabled. */
+    /**
+     * Returns raw Unity Catalog table/view metadata, or empty for 404. Results are cached when caching is enabled.
+     */
     public Optional<TableResponse> fetchTable(String databaseName, String tableName)
     {
         SchemaTableName key = new SchemaTableName(databaseName, tableName);
@@ -415,7 +423,8 @@ public class UnityCatalogBackedDeltaLakeMetastore
     private <T> T call(URI uri, JsonCodec<T> codec, String description)
     {
         return callAllowing404(uri, codec, description)
-                .orElseThrow(() -> new TrinoException(DELTA_LAKE_BAD_DATA,
+                .orElseThrow(() -> new TrinoException(
+                        DELTA_LAKE_BAD_DATA,
                         "Unity Catalog returned 404 for %s".formatted(description)));
     }
 
@@ -431,26 +440,31 @@ public class UnityCatalogBackedDeltaLakeMetastore
             return Optional.empty();
         }
         if (statusCode == 401 || statusCode == 403) {
-            throw new TrinoException(PERMISSION_DENIED,
+            throw new TrinoException(
+                    PERMISSION_DENIED,
                     "Unity Catalog access denied for %s (HTTP %d): %s".formatted(description, statusCode, truncateBody(response.getBody())));
         }
         if (statusCode == 429) {
-            throw new TrinoException(TOO_MANY_REQUESTS_FAILED,
+            throw new TrinoException(
+                    TOO_MANY_REQUESTS_FAILED,
                     "Unity Catalog rate limit exceeded for %s: %s".formatted(description, truncateBody(response.getBody())));
         }
         if (statusCode >= 500) {
-            throw new TrinoException(GENERIC_INTERNAL_ERROR,
+            throw new TrinoException(
+                    GENERIC_INTERNAL_ERROR,
                     "Unity Catalog server error for %s (HTTP %d): %s".formatted(description, statusCode, truncateBody(response.getBody())));
         }
         if (statusCode < 200 || statusCode >= 300) {
-            throw new TrinoException(DELTA_LAKE_BAD_DATA,
+            throw new TrinoException(
+                    DELTA_LAKE_BAD_DATA,
                     "Unity Catalog unexpected response for %s (HTTP %d): %s".formatted(description, statusCode, truncateBody(response.getBody())));
         }
         try {
             return Optional.of(codec.fromJson(response.getBody()));
         }
         catch (IllegalArgumentException e) {
-            throw new TrinoException(DELTA_LAKE_BAD_DATA,
+            throw new TrinoException(
+                    DELTA_LAKE_BAD_DATA,
                     "Unity Catalog returned unparseable JSON for %s: %s".formatted(description, truncateBody(response.getBody())));
         }
     }

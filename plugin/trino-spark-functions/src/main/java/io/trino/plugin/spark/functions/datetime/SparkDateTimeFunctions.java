@@ -197,7 +197,7 @@ public final class SparkDateTimeFunctions
         String text = s.toStringUtf8().trim();
         try {
             return java.time.LocalDateTime.parse(
-                    text, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT))
+                            text, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT))
                     .toEpochSecond(java.time.ZoneOffset.UTC);
         }
         catch (DateTimeParseException ignore) {
