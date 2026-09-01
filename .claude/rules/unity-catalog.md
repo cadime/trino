@@ -16,7 +16,8 @@ Fork-specific code. Full reference: `plugin/trino-delta-lake/README-unity-catalo
 
 `UnityCatalogTypeMapping` is used for **view columns only** — table columns come from the Delta
 transaction log. For any type name that exists in both, it must produce exactly the same Trino type
-as `DeltaLakeSchemaSupport.deserializeType`. Diff the two switch statements before changing either.
+as `DeltaLakeSchemaSupport.deserializeType`. Diff the two switch statements before changing either;
+they agree on every Delta primitive today, including `variant` (→ `json`).
 
 A view's declared column type is part of its schema. Declare it wider than the underlying Delta
 column and Trino inserts a `CAST` on the base column to satisfy the view schema; a `CAST` around a

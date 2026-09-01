@@ -19,6 +19,7 @@ import io.trino.spi.type.ArrayType;
 import io.trino.spi.type.MapType;
 import io.trino.spi.type.RowType;
 import io.trino.spi.type.Type;
+import io.trino.spi.type.TypeDescriptor;
 import io.trino.spi.type.TypeManager;
 
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.IntegerType.INTEGER;
 import static io.trino.spi.type.RealType.REAL;
 import static io.trino.spi.type.SmallintType.SMALLINT;
+import static io.trino.spi.type.StandardTypes.JSON;
 import static io.trino.spi.type.TimestampType.TIMESTAMP_MICROS;
 import static io.trino.spi.type.TimestampWithTimeZoneType.TIMESTAMP_TZ_MILLIS;
 import static io.trino.spi.type.TinyintType.TINYINT;
@@ -132,6 +134,8 @@ public final class UnityCatalogTypeMapping
             // is lost.
             case "timestamp", "timestamp_ltz" -> TIMESTAMP_TZ_MILLIS;
             case "timestamp_ntz" -> TIMESTAMP_MICROS;
+            // Databricks VARIANT, read as JSON — same as DeltaLakeSchemaSupport's mapping.
+            case "variant" -> typeManager.getType(new TypeDescriptor(JSON));
             default -> throw new TrinoException(NOT_SUPPORTED, "Unsupported Unity Catalog type: " + typeText);
         };
     }

@@ -153,8 +153,11 @@ timestamp(6) with time zone '...' <= CAST(datatimestamp AS timestamp(6) with tim
 and the scan row estimate went from 152,030 rows (23.92 MB) to 31,799,602 rows (4.89 GB) for the
 same query. When touching this class, diff it against `DeltaLakeSchemaSupport` first.
 
-Known gap: `variant` exists in the Delta mapping but not here, so a UC view exposing a variant
-column fails with `NOT_SUPPORTED`.
+The two mappings currently agree on every primitive Delta emits — `string`, `long`, `integer`,
+`short`, `byte`, `float`, `double`, `boolean`, `binary`, `date`, both timestamps, `decimal(p,s)`
+and `variant` (read as `json`, matching Delta). `UnityCatalogTypeMapping` additionally accepts
+SQL-style aliases UC may report (`tinyint`, `smallint`, `integer`, `bigint`, `real`, `varchar`,
+`varbinary`, `timestamp_ltz`); extra aliases are fine, divergent types are not.
 
 ## View security model
 
@@ -204,7 +207,6 @@ disappears from `filterPredicate` entirely; one that is still listed there was n
 - Partition discovery via UC API (partitions are in the transaction log)
 - Unity Catalog RBAC (auth is transport-level only, via token or OAuth2)
 - Pruning of view predicates that correlate a partition column with a data column (see above)
-- UC `variant` columns in views
 
 ## Table type handling
 
