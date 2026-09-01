@@ -35,7 +35,7 @@ import static io.trino.spi.type.IntegerType.INTEGER;
 import static io.trino.spi.type.RealType.REAL;
 import static io.trino.spi.type.SmallintType.SMALLINT;
 import static io.trino.spi.type.TimestampType.TIMESTAMP_MICROS;
-import static io.trino.spi.type.TimestampWithTimeZoneType.TIMESTAMP_TZ_MICROS;
+import static io.trino.spi.type.TimestampWithTimeZoneType.TIMESTAMP_TZ_MILLIS;
 import static io.trino.spi.type.TinyintType.TINYINT;
 import static io.trino.spi.type.VarbinaryType.VARBINARY;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
@@ -125,8 +125,12 @@ public final class UnityCatalogTypeMapping
             case "string", "varchar" -> createUnboundedVarcharType();
             case "binary", "varbinary" -> VARBINARY;
             case "date" -> DATE;
-            // Spark TIMESTAMP is wall-clock with session zone; Databricks defaults to TIMESTAMP_LTZ.
-            case "timestamp", "timestamp_ltz" -> TIMESTAMP_TZ_MICROS;
+            // Must match DeltaLakeSchemaSupport's mapping of the Delta "timestamp" type
+            // (TIMESTAMP_TZ_MILLIS). Declaring a wider type here makes Trino insert a CAST on the
+            // base column to satisfy the view schema, and a CAST around a column blocks domain
+            // extraction in DomainTranslator — so no predicate reaches the scan and file skipping
+            // is lost.
+            case "timestamp", "timestamp_ltz" -> TIMESTAMP_TZ_MILLIS;
             case "timestamp_ntz" -> TIMESTAMP_MICROS;
             default -> throw new TrinoException(NOT_SUPPORTED, "Unsupported Unity Catalog type: " + typeText);
         };
