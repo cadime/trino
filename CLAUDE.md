@@ -68,10 +68,10 @@ plugin/trino-delta-lake/src/main/java/io/trino/plugin/deltalake/
       StaticTokenAuthProvider.java                   # bearer token
       OAuth2ClientCredentialsAuthProvider.java       # OAuth2 with token refresh
       OAuth2AuthConfig.java                          # delta.unity-catalog.oauth2.* properties
-      UnityCatalogViewSupport.java                   # UC views → ConnectorViewDefinition
+      UnityCatalogViewSupport.java                   # UC views → ConnectorViewDefinition; DEFINER + VIEW_OWNER
       UnityCatalogViewTranslator.java                # Spark SQL → Trino SQL interface
       PassThroughViewTranslator.java                 # tokenizer-based translator
-      UnityCatalogTypeMapping.java                   # Hive/Spark type text → Trino type
+      UnityCatalogTypeMapping.java                   # UC type text → Trino type (view columns only)
       UnityCatalogView.java                          # view metadata record
       DeltaLakeUnityCatalogTableOperations.java      # all mutations throw NOT_SUPPORTED
       ForUnityCatalog.java                           # Guice binding annotation
@@ -88,16 +88,26 @@ Integration points in the main connector:
 - `DeltaLakeMetadata` — `getViews()` / `getView()` call `UnityCatalogViewSupport`
 - `DeltaLakeMetadataFactory` — injects `Optional<UnityCatalogViewSupport>`
 
-Dev catalog configs: `testing/trino-server-dev/etc/catalog/` (lakehouse.properties, raw.properties)
+Dev catalog configs: `testing/trino-server-dev/etc/catalog/`. Example catalogs for the Docker
+image, with secrets read from the environment: `docker/lakehouse/catalog/`.
 
 ## Architectural constraints — do not violate
 
 1. **No changes to `MetastoreTypeConfig` or anything in trino-hive.** The UC type lives in `DeltaLakeMetastoreTypeConfig` (delta-lake-internal enum).
 2. **All mutations throw `NOT_SUPPORTED`.** This is a read-only connector; do not add write paths.
-3. **No UC type parser.** Types come from the Delta transaction log. UC column metadata is redundant for Delta tables.
+3. **UC types are parsed for view columns only.** Table columns come from the Delta transaction
+   log; UC column metadata is redundant there. `UnityCatalogTypeMapping` exists solely because a
+   view has to declare its own column types — see constraint 7.
 4. **Auth via Airlift `HttpClient` only.** No Databricks SDK, no UC OSS client jar.
 5. **Views are v1/pass-through.** `getView`/`listViews` work but full Coral-based SQL translation is out of scope. Don't add a Coral dependency.
 6. **All work on branch `unity_catalog_480`.** No feature flags, no new branches for UC work.
+7. **`UnityCatalogTypeMapping` must agree with `DeltaLakeSchemaSupport`.** For any type name that
+   exists in both, the Trino type must be identical. A wider view column type makes Trino insert a
+   `CAST` on the base column, and a `CAST` around a column blocks domain extraction in
+   `DomainTranslator` — the symptom is a silent loss of predicate pushdown, not a type error.
+8. **Views run as DEFINER with owner `system_user`.** Do not switch back to invoker: access is
+   granted per view without granting it on the base tables. `ConnectorViewDefinition` rejects an
+   owner together with `runAsInvoker = true`, so both settings move together.
 
 If a request would violate any of these, flag it and ask for confirmation before proceeding.
 
@@ -144,7 +154,25 @@ When adding a new `Optional<SomeUCClass>` injection:
 mvn compile -pl plugin/trino-delta-lake -am --no-transfer-progress
 ```
 
-To run a local server with the UC catalogs configured:
+To run a local server with the UC catalogs configured, use the `trino-server-dev` module with a
+catalog properties file under `testing/trino-server-dev/etc/catalog/`.
+
+### Slim Docker image
+
+`core/trino-server-lakehouse` is a provisio package carrying only delta-lake (plus `trino-hdfs`),
+postgresql and spark-functions on top of `trino-server-core` — 10 plugins instead of the 48 in the
+full `trino-server`. See `docker/lakehouse/README.md`.
+
+**Provisio resolves the artifacts it packages from `~/.m2` at package time, not through
+`<dependencies>`.** `-am` therefore does not rebuild them, and the package will silently assemble
+whatever is already installed. After changing a plugin, the engine, or the Web UI, `install` that
+module before packaging, then verify the jar actually landed:
+
 ```bash
-# Use the trino-server-dev module with the lakehouse.properties or raw.properties catalog
+mvn install -pl plugin/trino-delta-lake -am -DskipTests
+mvn install -pl core/trino-server-lakehouse -DskipTests
+./core/docker/build.sh -p trino-server-lakehouse -a arm64 -t trino-uc
 ```
+
+For a Web UI change the chain is
+`core/trino-web-ui,core/trino-server-main,core/trino-server-core,core/trino-server-lakehouse`.
