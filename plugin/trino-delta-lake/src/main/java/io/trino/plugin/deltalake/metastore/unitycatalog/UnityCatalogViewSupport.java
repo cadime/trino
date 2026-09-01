@@ -37,6 +37,13 @@ public class UnityCatalogViewSupport
 {
     private static final Logger LOG = Logger.get(UnityCatalogViewSupport.class);
 
+    /**
+     * Unity Catalog views run in DEFINER mode as this generic identity, which is expected to hold
+     * access to every base table. Access can then be granted per view without granting it on the
+     * underlying tables.
+     */
+    private static final String VIEW_OWNER = "system_user";
+
     private final UnityCatalogBackedDeltaLakeMetastore metastore;
     private final UnityCatalogViewTranslator translator;
     private final TypeManager typeManager;
@@ -116,8 +123,8 @@ public class UnityCatalogViewSupport
                 Optional.empty(),
                 columns.build(),
                 view.comment(),
-                Optional.empty(),
-                true,
+                Optional.of(VIEW_OWNER),
+                false,
                 ImmutableList.of());
     }
 
