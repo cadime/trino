@@ -1,0 +1,23 @@
+# Local test stack for the Unity Catalog fork image.
+#
+# Build the image first:
+#   ./mvnw install -pl core/trino-server-lakehouse,client/trino-cli -am -DskipTests
+#   ./core/docker/build.sh -p trino-server-lakehouse -a arm64 -t trino-uc
+#
+# Then put the real values in a .env file next to this one and run:
+#   docker compose -f docker/lakehouse/docker-compose.yml up
+services:
+  trino:
+    image: trino-uc:483-arm64
+    ports:
+      - "8080:8080"
+    environment:
+      UC_URI: ${UC_URI}
+      UC_CATALOG: ${UC_CATALOG}
+      UC_TOKEN: ${UC_TOKEN}
+      AWS_REGION: ${AWS_REGION}
+      PG_URL: ${PG_URL}
+      PG_USER: ${PG_USER}
+      PG_PASSWORD: ${PG_PASSWORD}
+    volumes:
+      - ./catalog:/etc/trino/catalog:ro

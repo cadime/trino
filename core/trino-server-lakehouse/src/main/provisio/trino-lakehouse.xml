@@ -1,0 +1,37 @@
+<runtime>
+    <!-- Target -->
+    <archive name="${project.artifactId}-${project.version}.tar.gz" hardLinkIncludes="**/*.jar" />
+
+    <!-- Expand on top of trino-server-core, which provides the engine, the Web UI,
+         the launcher, password authenticators, resource group and session property
+         managers, and the exchange/spooling filesystems. -->
+    <artifactSet to="">
+        <artifact id="${project.groupId}:trino-server-core:tar.gz:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
+    <!-- Plugins. The trino-delta-lake artifact already bundles the S3, Azure, GCS
+         and Alluxio-cache filesystem support, so no extra filesystem plugin is needed. -->
+    <artifactSet to="plugin/delta-lake">
+        <artifact id="${project.groupId}:trino-delta-lake:zip:${project.version}">
+            <unpack />
+        </artifact>
+        <artifact id="${project.groupId}:trino-hdfs:zip:${project.version}">
+            <unpack useRoot="true" />
+        </artifact>
+    </artifactSet>
+
+    <artifactSet to="plugin/postgresql">
+        <artifact id="${project.groupId}:trino-postgresql:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
+    <artifactSet to="plugin/spark-functions">
+        <artifact id="${project.groupId}:trino-spark-functions:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+
+</runtime>
