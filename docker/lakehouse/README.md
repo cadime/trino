@@ -33,9 +33,24 @@ present. No catalog properties are baked into the image — mount your own.
 
 ## Build
 
+Provisio resolves the plugins it packages from the local Maven repository at
+package time, not through `<dependencies>`. `-am` therefore does **not** rebuild
+them, and the package will silently assemble whatever is already installed in
+`~/.m2`. After changing anything that ends up inside the image — a plugin, the
+engine, or the Web UI — install that module before packaging:
+
 ```bash
-./mvnw install -pl core/trino-server-lakehouse,client/trino-cli -am -DskipTests
+./mvnw install -pl core/trino-web-ui,core/trino-server-main,core/trino-server-core,core/trino-server-lakehouse -DskipTests
 ```
+
+For a plugin change, swap in its module (for example `plugin/trino-delta-lake`)
+and add `-am`. The CLI is only needed once:
+
+```bash
+./mvnw install -pl client/trino-cli -am -DskipTests
+```
+
+Then build the image:
 
 ```bash
 ./core/docker/build.sh -p trino-server-lakehouse -a arm64 -t trino-uc
